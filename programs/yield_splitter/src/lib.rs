@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
 declare_id!("9tGdavqZd29sZzkWo2kSjytFZtS4VzArwcshf9zvEMVg");
 
@@ -17,8 +18,53 @@ pub mod yield_splitter {
     }
 
     pub fn tokenize_yield(ctx: Context<TokenizeYield>, amount: u64) -> Result<()> {
-        // Logic to strip yield would go here
-        msg!("Tokenizing {} amount into PT/YT", amount);
+        // In a real implementation:
+        // 1. Transfer underlying asset (e.g. JitoSOL) from user to Vault
+        // 2. Mint PT and YT 1:1 to user
+
+        // Mint PT
+        let seeds = &[
+            b"pt_mint",
+            ctx.accounts.amm.to_account_info().key.as_ref(), // Bind mints to specific AMM pool
+            &[ctx.bumps.pt_mint],
+        ];
+        let signer = &[&seeds[..]];
+
+        anchor_spl::token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::MintTo {
+                    mint: ctx.accounts.pt_mint.to_account_info(),
+                    to: ctx.accounts.user_pt.to_account_info(),
+                    authority: ctx.accounts.pt_mint.to_account_info(),
+                },
+                signer,
+            ),
+            amount,
+        )?;
+
+        // Mint YT (using same seed pattern logic)
+        let seeds_yt = &[
+            b"yt_mint",
+            ctx.accounts.amm.to_account_info().key.as_ref(),
+            &[ctx.bumps.yt_mint],
+        ];
+        let signer_yt = &[&seeds_yt[..]];
+
+        anchor_spl::token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::MintTo {
+                    mint: ctx.accounts.yt_mint.to_account_info(),
+                    to: ctx.accounts.user_yt.to_account_info(),
+                    authority: ctx.accounts.yt_mint.to_account_info(),
+                },
+                signer_yt,
+            ),
+            amount,
+        )?; 
+        
+        msg!("Tokenized {} underlying into PT/YT", amount);
         Ok(())
     }
 
@@ -71,7 +117,37 @@ pub struct InitializeAmm<'info> {
 }
 
 #[derive(Accounts)]
-pub struct TokenizeYield {}
+pub struct TokenizeYield<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    
+    // The AMM Pool state (could also hold the vault info)
+    pub amm: Account<'info, AmmPool>,
+
+    // PT Mint - Checks that it is a PDA derived from this AMM
+    #[account(
+        mut,
+        seeds = [b"pt_mint", amm.key().as_ref()],
+        bump
+    )]
+    pub pt_mint: Account<'info, Mint>,
+
+    // YT Mint - Checks that it is a PDA derived from this AMM
+    #[account(
+        mut,
+        seeds = [b"yt_mint", amm.key().as_ref()],
+        bump
+    )]
+    pub yt_mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub user_pt: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub user_yt: Account<'info, TokenAccount>,
+
+    pub token_program: Program<'info, Token>,
+}
 
 #[derive(Accounts)]
 pub struct Swap<'info> {
