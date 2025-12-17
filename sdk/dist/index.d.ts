@@ -9,6 +9,11 @@ export declare class SolFabric {
     private jitoUrl;
     constructor(config: SolFabricConfig);
     /**
+     * Simulates a bundle of transactions to verify they would succeed.
+     * Useful for testing without a real Jito Key/Block Engine.
+     */
+    simulateBundle(bundle: JitoBundle): Promise<void>;
+    /**
      * Sends a bundle of transactions via Jito Block Engine for atomic execution.
      * @param bundle - Array of transactions to execute atomically
      */

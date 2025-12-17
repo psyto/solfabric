@@ -17,6 +17,24 @@ export class SolFabric {
     }
 
     /**
+     * Simulates a bundle of transactions to verify they would succeed.
+     * Useful for testing without a real Jito Key/Block Engine.
+     */
+    async simulateBundle(bundle: JitoBundle): Promise<void> {
+        console.log("Simulating verification of bundle...");
+
+        for (const tx of bundle.transactions) {
+            const result = await this.connection.simulateTransaction(tx);
+            if (result.value.err) {
+                console.error("Simulation failed for tx:", result.value.err);
+                console.log("Logs:", result.value.logs);
+                throw new Error("Transaction simulation failed");
+            }
+        }
+        console.log("Bundle simulation passed.");
+    }
+
+    /**
      * Sends a bundle of transactions via Jito Block Engine for atomic execution.
      * @param bundle - Array of transactions to execute atomically
      */
